@@ -1,0 +1,8 @@
+#box{
+    border: 5px solid brown;
+    max-width: 768
+}
+#screen{
+    image-rendering: pixelated;
+    cursor: none;
+}
