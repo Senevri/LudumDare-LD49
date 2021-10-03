@@ -45,8 +45,11 @@ class ReactiveEntity extends ImageEntity{
         super(name, attributes)
         console.log("reactive entity", name, attributes)
     }
-    selected = false
     behaviors = []
+
+    removeBehavior(behavior) {
+        this.behaviors = this.behaviors.filter((b)=>b!= behavior)
+    }
 
     checkCollision = (x,y,w,h) => {
 
@@ -55,10 +58,8 @@ class ReactiveEntity extends ImageEntity{
             if (y>=this.position.y &&
                 y<=this.position.y+this.asset.height) {
                 //console.log(x,y,this)
-                this.selected = true
                 return true
             }
-            this.selected = false
             return false
         }
 
@@ -120,6 +121,10 @@ function getEntity(attributes){
     return result
 }
 
+function getEntitiesInGrid(pos){
+    return entities.filter((ent)=>ent.checkCollision(pos.x, pos.y, 16, 16))
+}
+
 let entities = (function(){
     let gridsize={x:16, y:16}
 
@@ -127,12 +132,17 @@ let entities = (function(){
     return [
         //new TiledEntity(resources["test.png"]),
         new ReactiveEntity("test", {
-            asset:resources["stik_smol.png"]}),
+            asset:resources["stik_smol.png"],
+            base_speed:1
+        }),
         new ReactiveEntity("enemy", {
             asset:resources["enemy.png"],
             position:{x:gridsize.x*5,y:gridsize.y*5}}),
         new ReactiveEntity("player", {
             asset:resources["thegirl.png"],
+            base_speed:2,
+            attack:{range:16, effect:(ent)=>{
+                console.log("attack!", ent)}},
         }),
         new SelectMarker("selection"),
     ]

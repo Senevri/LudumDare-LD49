@@ -19,6 +19,7 @@
     class Behavior{
         constructor(name){
             this.name = name
+            this.created = + new Date()
         }
 
         update = ()=>{}
@@ -48,8 +49,8 @@
 
     function getGridPos(pos){
         return {
-            x:Math.floor(pos.x/16),
-            y:Math.floor(pos.y/16)
+            x:Math.floor(pos.x/gridsize.x),
+            y:Math.floor(pos.y/gridsize.y)
         }
     }
 
@@ -65,7 +66,8 @@
     function movetotarget(entity, target){
         //entity = attrs.entity
         //target = attrs.target
-        let speed = 1
+        var done = false
+        let speed = entity.base_speed
         let p = entity.position
         dx = (target.x-p.x)
         dy = (target.y-p.y)
@@ -79,38 +81,91 @@
         //pathfinding? maybe later.
         if (Math.abs(target.x-p.x) <1 &&
             Math.abs(target.y-p.y) <1) {
-            entity.behaviors = []
             entity.speed = {x:0, y:0}
+            p.x = target.x
+            p.y = target.y
+            //entity.speed = null
+            //entity.behaviors=[]
+            done = true
         }
-        console.log("speed", entity.speed)
-        p.x = p.x + entity.speed.x
-        p.y = p.y + entity.speed.y
-
-
+        //console.log("speed", entity.speed)
+        if (entity.speed) {
+            p.x = p.x + entity.speed.x
+            p.y = p.y + entity.speed.y
+        }
+        return done
     }
 
+    function onlyEntIsPlayer(entities){
+        result = entities.length == 0 ||
+            (entities.length == 1 &&
+            "player" == entities[0].name) ||
+            entities.length > 1
+        return result
+    }
 
     function mousedownhandler (event){
         var collision = false
         entities.forEach((entity)=>{
-            pos = translateCursor(event)
-            gpos = getGridPos(pos)
-            let moveto = new Behavior("moveto")
-            moveto.update = (()=>{
-                return (ent)=>{
-                    t = getPixelPos(gpos)
-                    movetotarget(ent, t)}
-            })()
+            let pos = translateCursor(event)
+            var gpos = getGridPos(pos)
+            let t={}
+            let ents = getEntitiesInGrid(pos)
             let pc = getEntity({name:"player"})
+
+            //FIXME is buggy but is good enough.
+            if (!onlyEntIsPlayer(ents)){
+                let curpos = getGridPos(pc.position)
+                let dx = gpos.x-curpos.x
+                let dy = gpos.y-curpos.y
+                // shift by 1 if necessary
+                let x1 = dx!=0 ? dx/Math.abs(dx):0
+                let y1 = dy!=0 ? dy/Math.abs(dy):0
+                //console.log(gpos)
+                gpos = {
+                    x:gpos.x-x1,
+                    y:gpos.y-y1
+                }
+                //console.log(dx, dy, x1, y1, gpos)
+            }
+
+            let moveto = new Behavior("moveto")
+            moveto.update = (ent)=>{
+                t = getPixelPos(gpos)
+                done = movetotarget(ent, t)
+                if (done) {
+                    ent.removeBehavior(moveto)
+                }
+            }
+
+            let attack = new Behavior("attack")
+            attack.update = (attacker)=>{
+                console.log(attacker.name, attack)
+                let range = 1+pc.attack.range
+                let xdistance = Math.abs(attacker.position.x-entity.position.x)
+                let ydistance = Math.abs(attacker.position.y-entity.position.y)
+                console.log("attack?", xdistance, ydistance )
+                if (xdistance<=range &&
+                    ydistance<=range){
+                        attacker.attack.effect(entity)
+                        attacker.removeBehavior(attack)
+                    }
+            }
+
             pc.speed = null
             pc.behaviors = pc.behaviors.filter((b)=>{
-                console.log(b.name)
-                return b.name != "moveto"
+                //console.log(b.name)
+                return (!["moveto"].includes(b.name) )
             })
             pc.behaviors.push(moveto)
-            console.log(pc.behaviors)
+            // console.log(pc.behaviors)
 
             if (entity.checkCollision(pos.x,pos.y)) {
+                console.log(entity, pos)
+                if (entity.name!="player") {
+                    pc.behaviors.push(attack)
+                }
+                console.log(pc.behaviors)
                 collision = true
             }
             if (entity.name=="selection") {
@@ -139,10 +194,38 @@
     //entities.push(crosshairs)
 
     function setup() {
+        console.log("setup")
         ent = getEntity({name:"test"})
+        ent.behaviors=[]
         //console.log(ent)
         ent.position = getPixelPos({x:7, y:8})
-        player_character = getEntity("player")
+        let wanderbehavior = new Behavior("wander")
+        wanderbehavior.update = (ent)=>{
+            function getNewTarget(){
+                let pos = ent.position
+                let tpos = {}
+                let ran_mul = 3
+                tpos.x = 1+pos.x-gridsize.x*ran_mul+(2*gridsize.x*ran_mul*Math.random())
+                tpos.y = 1+pos.y-gridsize.y*ran_mul+(2*gridsize.y*ran_mul*Math.random())
+                tpos.x = tpos.x<0 ? 0 : tpos.x > 15*gridsize.x ? 15*gridsize.x : tpos.x
+                tpos.y = tpos.y<0 ? 0 : tpos.y > 11*gridsize.y ? 11*gridsize.y : tpos.y
+                t = getPixelPos(getGridPos(tpos))
+                //console.log("new target",t, ent.position)
+                return t
+            }
+
+            if (!ent.speed || (ent.speed.x == 0 && ent.speed.y == 0)) {
+                let t = getNewTarget()
+                done = movetotarget(ent,t)
+            }
+            done=movetotarget(ent,t)
+            if (done){
+                ent.speed=null
+            }
+
+        }
+        ent.behaviors.push(wanderbehavior)
+        console.log(ent.behaviors)
     }
 
     window.onload=()=>{
