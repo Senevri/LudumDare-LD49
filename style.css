@@ -6,3 +6,6 @@
     image-rendering: pixelated;
     cursor: none;
 }
+body {
+    background-color: darkslategray;
+}

@@ -10,37 +10,99 @@
         //ctx.fillStyle = "#000000"
         //  ctx.fillRect(0,0,canvas.width, canvas.height)
         ctx.clearRect(0,0,canvas.width,canvas.height)
+        var pc = getEntity({name:"player"})
         entities.forEach((entity)=>{
             entity.draw()
         })
         crosshairs.draw()
+        ctx.fillStyle = "#FFFFFF"
+        ctx.font = "8px Courier New"
+        ctx.fillText("Satiety:"+pc.stats.satiety, 4,8)
+        ctx.fillText("Mood:"+pc.getTemperString(pc), 4,gridsize.y*1)
     }
 
-    class Behavior{
-        constructor(name){
-            this.name = name
-            this.created = + new Date()
+    function director(){
+        //check enemies in entities
+        let enemies = entities.filter(e=>e.name=="enemy")
+        if (enemies.length<1 || enemies.length<20 && Math.random()>0.9){
+            console.log("make enemies")
+            let suggestedPosition = getPixelPos({x:1,y:Math.floor(10*Math.random())})
+            let ents = getEntitiesInGrid(suggestedPosition).filter(e=>e.name=="enemy")
+            if (ents.length == 0) {
+                let enemy = new Creature("enemy", {
+                    base_speed:1,
+                    asset:resources["enemy.png"],
+                    position:suggestedPosition,
+                    stats:{
+                        health: 100, nutrition: 100
+                    },
+                    attack:{
+                        range: 20
+                    }
+                })
+                enemy.behaviors.push(new behaviors.Behavior("wander"))
+                let hunt = new behaviors.Behavior("hunt")
+                hunt.target = getEntity({name:"player"})
+                hunt.target.stats.temper++
+                console.log(hunt.target)
+
+                function removeByName(name) {
+                    enemy.behaviors = enemy.behaviors.filter(b=>b.name != name)
+                }
+
+                hunt.update = (enemy, behavior)=>{
+
+                    dist = behaviors.func.getDistance(enemy.position, hunt.target.position)
+                    //console.log("hunt", dist)
+                    let is_wandering = enemy.behaviors.filter(b=>b.name=="wander").length>0
+                    let in_attack_distance = Math.floor(dist.distance/gridsize.x)<3
+                    if (is_wandering && in_attack_distance) {
+                        removeByName("wander")
+                        //console.log("should stop moving")
+                        movtoatk=new behaviors.Behavior("movetoatk")
+                        movtoatk.update = (enemy, b)=>{
+                            behaviors.func.moveToTarget(enemy, hunt.target.position)
+                        }
+                        enemy.speed=null
+                        enemy.behaviors.push(movtoatk)
+                    }
+                    if (dist.distance<enemy.attack.range) {
+                        console.log("in range")
+                        enemy.behaviors = enemy.behaviors.filter(b=>b.name!="movtoatk")
+                        hunt.target.stats.temper += 1
+                    }
+                    if (!is_wandering && !in_attack_distance) {
+                        enemy.speed=null
+                        enemy.behaviors.push(new behaviors.Behavior("wander"))
+                    }
+                }
+                enemy.behaviors.push(hunt)
+                console.log(enemy)
+                entities.push(enemy)
+            }
+
+
+            //console.log(entities)
+
         }
-
-        update = ()=>{}
     }
+
+
+
 
 
     function update() {
         entities.forEach((entity)=>{
             entity.update()
-            if (entity.behaviors){
-                entity.behaviors.forEach((behavior)=>{
-                    behavior.update(entity)
-                })
-            }
         })
+        director()
     }
 
 
     let fps = 15
 
     function translateCursor(event, offset={x:0, y:0}){
+        //console.log(event)
         rect = canvas.getBoundingClientRect()
         let x = (event.clientX-rect.x)/scale.x + offset.x
         let y = (event.clientY-rect.y)/scale.y + offset.y
@@ -61,111 +123,74 @@
         }
     }
 
+    window.translateCursor = translateCursor
+    window.getPixelPos = getPixelPos
+    window.getGridPos = getGridPos
+
     let scale = {x:3, y:3}
 
-    function movetotarget(entity, target){
-        //entity = attrs.entity
-        //target = attrs.target
-        var done = false
-        let speed = entity.base_speed
-        let p = entity.position
-        dx = (target.x-p.x)
-        dy = (target.y-p.y)
-        // vector length
-        l = Math.sqrt(dx*dx+dy*dy)
-        if (!entity.speed) {
-            entity.speed = {}
-            entity.speed.x = speed * dx/l
-            entity.speed.y = speed * dy/l
-        }
-        //pathfinding? maybe later.
-        if (Math.abs(target.x-p.x) <1 &&
-            Math.abs(target.y-p.y) <1) {
-            entity.speed = {x:0, y:0}
-            p.x = target.x
-            p.y = target.y
-            //entity.speed = null
-            //entity.behaviors=[]
-            done = true
-        }
-        //console.log("speed", entity.speed)
-        if (entity.speed) {
-            p.x = p.x + entity.speed.x
-            p.y = p.y + entity.speed.y
-        }
-        return done
-    }
-
-    function onlyEntIsPlayer(entities){
+    function onlyCreatureIsPlayer(entities){
         result = entities.length == 0 ||
             (entities.length == 1 &&
             "player" == entities[0].name) ||
             entities.length > 1
-        return result
+        return result && entities.every((e)=>e.constructor.name="Creature")
+    }
+
+    function mouseToGridPos(pc, pos) {
+        var gpos = getGridPos(pos)
+        let ents = getEntitiesInGrid(pos)
+
+        //FIXME is buggy but is good enough.
+        if (!onlyCreatureIsPlayer(ents)){
+            let curpos = getGridPos(pc.position)
+            let dx = gpos.x-curpos.x
+            let dy = gpos.y-curpos.y
+            // shift by 1 if necessary
+            let x1 = dx!=0 ? dx/Math.abs(dx):0
+            let y1 = dy!=0 ? dy/Math.abs(dy):0
+            //console.log(gpos)
+            gpos = {
+                x:gpos.x-x1,
+                y:gpos.y-y1
+            }
+            //console.log(dx, dy, x1, y1, gpos)
+        }
+        return gpos
     }
 
     function mousedownhandler (event){
         var collision = false
+        window.mouse = event
+        console.log(entities)
+        let pc = getEntity({name:"player"})
+        let pos = window.translateCursor(event)
+
+        let gpos = mouseToGridPos(pc, pos)
         entities.forEach((entity)=>{
-            let pos = translateCursor(event)
-            var gpos = getGridPos(pos)
-            let t={}
-            let ents = getEntitiesInGrid(pos)
-            let pc = getEntity({name:"player"})
-
-            //FIXME is buggy but is good enough.
-            if (!onlyEntIsPlayer(ents)){
-                let curpos = getGridPos(pc.position)
-                let dx = gpos.x-curpos.x
-                let dy = gpos.y-curpos.y
-                // shift by 1 if necessary
-                let x1 = dx!=0 ? dx/Math.abs(dx):0
-                let y1 = dy!=0 ? dy/Math.abs(dy):0
-                //console.log(gpos)
-                gpos = {
-                    x:gpos.x-x1,
-                    y:gpos.y-y1
-                }
-                //console.log(dx, dy, x1, y1, gpos)
-            }
-
-            let moveto = new Behavior("moveto")
-            moveto.update = (ent)=>{
-                t = getPixelPos(gpos)
-                done = movetotarget(ent, t)
-                if (done) {
-                    ent.removeBehavior(moveto)
-                }
-            }
-
-            let attack = new Behavior("attack")
-            attack.update = (attacker)=>{
-                console.log(attacker.name, attack)
-                let range = 1+pc.attack.range
-                let xdistance = Math.abs(attacker.position.x-entity.position.x)
-                let ydistance = Math.abs(attacker.position.y-entity.position.y)
-                console.log("attack?", xdistance, ydistance )
-                if (xdistance<=range &&
-                    ydistance<=range){
-                        attacker.attack.effect(entity)
-                        attacker.removeBehavior(attack)
-                    }
-            }
 
             pc.speed = null
             pc.behaviors = pc.behaviors.filter((b)=>{
                 //console.log(b.name)
                 return (!["moveto"].includes(b.name) )
             })
+            let moveto = new behaviors.Behavior("moveto")
+            moveto.gpos = gpos
             pc.behaviors.push(moveto)
             // console.log(pc.behaviors)
 
             if (entity.checkCollision(pos.x,pos.y)) {
-                console.log(entity, pos)
-                if (entity.name!="player") {
+                console.log(entity.constructor.name, pos)
+                if (!["player", "food"].includes(entity.name)) {
+                    let attack = new behaviors.Behavior("attack")
+                    attack.target = entity
                     pc.behaviors.push(attack)
                 }
-                console.log(pc.behaviors)
+                if ("food" == entity.name){
+                    pc.stats.satiety += entity.stats.nutrition
+                    entity.remove()
+                }
+                //console.log(pc.behaviors)
                 collision = true
             }
             if (entity.name=="selection") {
@@ -173,7 +198,7 @@
                 entity.position.x = gpos.x*16
                 entity.position.y = gpos.y*16
             }
-
+            console.log(entity.stats)
 
         })
         let ent = getEntity({name:"selection"})
@@ -199,32 +224,7 @@
         ent.behaviors=[]
         //console.log(ent)
         ent.position = getPixelPos({x:7, y:8})
-        let wanderbehavior = new Behavior("wander")
-        wanderbehavior.update = (ent)=>{
-            function getNewTarget(){
-                let pos = ent.position
-                let tpos = {}
-                let ran_mul = 3
-                tpos.x = 1+pos.x-gridsize.x*ran_mul+(2*gridsize.x*ran_mul*Math.random())
-                tpos.y = 1+pos.y-gridsize.y*ran_mul+(2*gridsize.y*ran_mul*Math.random())
-                tpos.x = tpos.x<0 ? 0 : tpos.x > 15*gridsize.x ? 15*gridsize.x : tpos.x
-                tpos.y = tpos.y<0 ? 0 : tpos.y > 11*gridsize.y ? 11*gridsize.y : tpos.y
-                t = getPixelPos(getGridPos(tpos))
-                //console.log("new target",t, ent.position)
-                return t
-            }
-
-            if (!ent.speed || (ent.speed.x == 0 && ent.speed.y == 0)) {
-                let t = getNewTarget()
-                done = movetotarget(ent,t)
-            }
-            done=movetotarget(ent,t)
-            if (done){
-                ent.speed=null
-            }
-
-        }
-        ent.behaviors.push(wanderbehavior)
+        ent.behaviors.push(new behaviors.Behavior("wander"))
         console.log(ent.behaviors)
     }
 

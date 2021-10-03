@@ -15,7 +15,8 @@ let resources = (function(){
         "stik_smol.png",
         "enemy.png",
         "thegirl.png",
-        "crosshairs.png"
+        "crosshairs.png",
+        "food.png"
     ].forEach((asset)=>{
         let type = asset.substring(asset.length-3)
         resources[asset] = (typehandlers[type](asset))

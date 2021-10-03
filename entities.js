@@ -13,6 +13,9 @@ class Entity{
     draw=()=>{}
     checkCollision = ()=>false
     update = ()=>{}
+    remove = ()=>{
+        entities = entities.filter(e=>e!=this)
+    }
 }
 class ImageEntity extends Entity{
     visible = true
@@ -63,6 +66,23 @@ class ReactiveEntity extends ImageEntity{
             return false
         }
 
+    }
+
+    update = ()=>{
+        if (this.behaviors){
+            this.behaviors.forEach((behavior)=>{
+                behavior.update(this, behavior) //kludgey, but can pass temp data via behavior
+            })
+        }
+    }
+}
+
+class Creature extends ReactiveEntity{
+    // stats = {
+    //     //might be different?
+    // }
+    constructor(name, attributes){
+        super(name, attributes)
     }
 }
 
@@ -128,21 +148,53 @@ function getEntitiesInGrid(pos){
 let entities = (function(){
     let gridsize={x:16, y:16}
 
-
     return [
         //new TiledEntity(resources["test.png"]),
-        new ReactiveEntity("test", {
+        new Creature("test", {
             asset:resources["stik_smol.png"],
             base_speed:1
         }),
-        new ReactiveEntity("enemy", {
-            asset:resources["enemy.png"],
-            position:{x:gridsize.x*5,y:gridsize.y*5}}),
-        new ReactiveEntity("player", {
+        new Creature("player", {
             asset:resources["thegirl.png"],
+            position:{x:7*gridsize.x, y:5*gridsize.y},
             base_speed:2,
             attack:{range:16, effect:(ent)=>{
-                console.log("attack!", ent)}},
+                console.log("attack!", ent)
+                ent.stats.health -= 10
+
+                if (ent.stats.health <= 0) {
+                    entities.push(new ReactiveEntity("food", {
+                        asset: resources["food.png"],
+                        position:ent.position,
+                        stats:{
+                            nutrition: ent.stats.nutrition + ent.stats.health
+                        }
+
+                    }))
+                    ent.remove()
+                }
+                }
+            },
+            getTemperString: (pc)=>{
+                let descriptions =[
+                    "Chill",
+                    "Cranky",
+                    "Angry",
+                    "Raging",
+                ]
+                let mood = descriptions[
+                    Math.floor(pc.stats.temper/100*descriptions.length)]
+
+                return (pc.stats.satiety > 0 || pc.stats.temper < 100) ?
+                mood != undefined ?
+                    mood
+                    : "!!!!!"
+                : "Hangry!!"
+            },
+            stats:{
+                temper:0,
+                satiety:100
+            }
         }),
         new SelectMarker("selection"),
     ]
