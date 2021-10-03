@@ -72,6 +72,14 @@ behaviors = (function(){
             //console.log("attack?", xdistance, ydistance )
             if (xdistance<=range &&
                 ydistance<=range){
+                    canvas = document.getElementById("screen")
+                    ctx = canvas.getContext('2d')
+                    ctx.strokeStyle = "#ff0000"
+                    ctx.beginPath();
+                    ctx.moveTo(8+attacker.position.x, 8+attacker.position.y);
+                    ctx.lineTo(8+target.position.x, 8+target.position.y);
+                    ctx.stroke();
+
                     console.log(target.stats)
                     attacker.attack.effect(target)
                     attacker.removeBehavior(behavior)
