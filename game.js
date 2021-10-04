@@ -11,21 +11,29 @@
         //  ctx.fillRect(0,0,canvas.width, canvas.height)
         ctx.clearRect(0,0,canvas.width,canvas.height)
         var pc = getEntity({name:"player"})
+        var enemies = 0
         entities.forEach((entity)=>{
             entity.draw()
+            if (entity.name=="enemy"){
+                //console.log(entity.position)
+                enemies++
+            }
         })
         crosshairs.draw()
         ctx.fillStyle = "#FFFFFF"
         ctx.font = "8px Courier New"
         ctx.fillText("Satiety:"+pc.stats.satiety, 4,8)
-        ctx.fillText("Mood:"+pc.getTemperString(pc), 4,gridsize.y*1)
+        ctx.fillText("Mood:"+pc.getTemperString(pc) + " - " + pc.stats.temper, 4,gridsize.y*1)
+        ctx.fillText("Enemies:" + enemies, 4, gridsize.y*9)
+
     }
 
     function director(){
         //check enemies in entities
+        let max_enemies =3
         let enemies = entities.filter(e=>e.name=="enemy")
-        if (enemies.length<1 || enemies.length<20 && Math.random()>0.9){
-            console.log("make enemies")
+        if (enemies.length<1 || enemies.length<3 && Math.random()>0.95){
+            //console.log("make enemies")
             let suggestedPosition = getPixelPos({x:1,y:Math.floor(10*Math.random())})
             let ents = getEntitiesInGrid(suggestedPosition).filter(e=>e.name=="enemy")
             if (ents.length == 0) {
@@ -44,7 +52,7 @@
                 let hunt = new behaviors.Behavior("hunt")
                 hunt.target = getEntity({name:"player"})
                 hunt.target.stats.temper++
-                console.log(hunt.target)
+                //console.log(hunt.target)
 
                 function removeByName(name) {
                     enemy.behaviors = enemy.behaviors.filter(b=>b.name != name)
@@ -58,6 +66,7 @@
                     let in_attack_distance = Math.floor(dist.distance/gridsize.x)<3
                     if (is_wandering && in_attack_distance) {
                         removeByName("wander")
+
                         //console.log("should stop moving")
                         movtoatk=new behaviors.Behavior("movetoatk")
                         movtoatk.update = (enemy, b)=>{
@@ -67,7 +76,7 @@
                         enemy.behaviors.push(movtoatk)
                     }
                     if (dist.distance<enemy.attack.range) {
-                        console.log("in range")
+                        //console.log("in range")
                         enemy.behaviors = enemy.behaviors.filter(b=>b.name!="movtoatk")
                         hunt.target.stats.temper += 1
                     }
@@ -77,13 +86,9 @@
                     }
                 }
                 enemy.behaviors.push(hunt)
-                console.log(enemy)
+                //console.log(enemy)
                 entities.push(enemy)
             }
-
-
-            //console.log(entities)
-
         }
     }
 
@@ -99,7 +104,7 @@
     }
 
 
-    let fps = 15
+    let fps = 24
 
     function translateCursor(event, offset={x:0, y:0}){
         //console.log(event)
@@ -162,11 +167,11 @@
     function mousedownhandler (event){
         var collision = false
         window.mouse = event
-        console.log(entities)
         let pc = getEntity({name:"player"})
         let pos = window.translateCursor(event)
 
         let gpos = mouseToGridPos(pc, pos)
+        console.log(pos, gpos)
         entities.forEach((entity)=>{
 
             pc.speed = null
@@ -180,7 +185,7 @@
             // console.log(pc.behaviors)
 
             if (entity.checkCollision(pos.x,pos.y)) {
-                console.log(entity.constructor.name, pos)
+                //console.log(entity.constructor.name, pos)
                 if (!["player", "food"].includes(entity.name)) {
                     let attack = new behaviors.Behavior("attack")
                     attack.target = entity
@@ -198,7 +203,6 @@
                 entity.position.x = gpos.x*16
                 entity.position.y = gpos.y*16
             }
-            console.log(entity.stats)
 
         })
         let ent = getEntity({name:"selection"})
@@ -220,12 +224,30 @@
 
     function setup() {
         console.log("setup")
-        ent = getEntity({name:"test"})
-        ent.behaviors=[]
+        //ent = getEntity({name:"test"})
+        //ent.behaviors=[]
         //console.log(ent)
-        ent.position = getPixelPos({x:7, y:8})
-        ent.behaviors.push(new behaviors.Behavior("wander"))
-        console.log(ent.behaviors)
+        //ent.position = getPixelPos({x:7, y:8})
+        //ent.behaviors.push(new behaviors.Behavior("wander"))
+        //console.log(ent.behaviors)
+        pc = getEntity({name:"player"})
+        pc.behaviors.push(new behaviors.Behavior("eat"))
+        pc.atk_options = [
+            {range: gridsize.x, power: 10, resource: resources["atk_1.png"]},
+            {range: gridsize.x*3, power: 30, resource: resources["atk_2.png"]},
+            {range: gridsize.x*10, power: 90, resource: resources["atk_3.png"]},
+        ]
+        entities.push(new ImageEntity("current_attack", {
+            asset: pc.atk_options[0].resource,
+            position: {x: gridsize.x * 7, y: gridsize.y * 8, },
+            update: ()=> {
+                let self = getEntity({name:"current_attack"})
+                let atk = pc.getAtkChoice(pc)
+                console.log(atk)
+                self.asset = atk.resource
+            }
+        }))
+
     }
 
     window.onload=()=>{

@@ -1,9 +1,12 @@
 let gridsize={x:16, y:16}
 
 class Entity{
-    constructor(name) {
+    constructor(name, attributes) {
         //console.log("base entity", name)
         this.name = name
+        for (var key in attributes) {
+            this[key] = attributes[key]
+        }
     }
     name = null
     asset = null
@@ -21,10 +24,7 @@ class ImageEntity extends Entity{
     visible = true
     draw = this.drawImage
     constructor(name, attributes){
-        super(name)
-        for (var key in attributes) {
-            this[key] = attributes[key]
-        }
+        super(name, attributes)
     }
     drawImage(){
         if (!this.asset) return;
@@ -87,12 +87,11 @@ class Creature extends ReactiveEntity{
 }
 
 class SelectMarker extends Entity{
-    constructor(name){
-        super(name)
+    constructor(name, attrs){
+        super(name, attrs)
     }
     color = {r:0, g:255, b:0, a:0}
     visible = false
-
     square = {width:16, height:16}
     selection = {x:0, y:0, width:0, height:0}
     draw = this.drawSelection
@@ -150,27 +149,27 @@ let entities = (function(){
 
     return [
         //new TiledEntity(resources["test.png"]),
-        new Creature("test", {
-            asset:resources["stik_smol.png"],
-            base_speed:1
-        }),
+        // new Creature("test", {
+        //     asset:resources["stik_smol.png"],
+        //     base_speed:1
+        // }),
         new Creature("player", {
             asset:resources["thegirl.png"],
             position:{x:7*gridsize.x, y:5*gridsize.y},
             base_speed:2,
-            attack:{range:16, effect:(ent)=>{
+            attack:{range:gridsize.x, power: 10, effect:(ent, attack)=>{
                 console.log("attack!", ent)
-                ent.stats.health -= 10
-
+                ent.stats.health -= attack.power
                 if (ent.stats.health <= 0) {
-                    entities.push(new ReactiveEntity("food", {
+                    entities = entities.filter(e=>!(e.name=="marker"&& e.forEntity == ent)) // remove marker
+                    food = new ReactiveEntity("food", {
                         asset: resources["food.png"],
                         position:ent.position,
                         stats:{
-                            nutrition: ent.stats.nutrition + ent.stats.health
+                            nutrition: ent.stats.nutrition + (ent.stats.health + attack.power)/6
                         }
-
-                    }))
+                    })
+                    entities.push(food)
                     ent.remove()
                 }
                 }
@@ -182,14 +181,22 @@ let entities = (function(){
                     "Angry",
                     "Raging",
                 ]
-                let mood = descriptions[
-                    Math.floor(pc.stats.temper/100*descriptions.length)]
+                let mood = descriptions[Math.floor(pc.stats.temper/100*descriptions.length)]
 
                 return (pc.stats.satiety > 0 || pc.stats.temper < 100) ?
                 mood != undefined ?
                     mood
                     : "!!!!!"
                 : "Hangry!!"
+            },
+            getAtkChoice: (pc)=> {
+
+                let atk_choice = pc.stats.temper > 0 ? Math.floor(pc.stats.temper/100*pc.atk_options.length) : 0
+                let atk = pc.atk_options[atk_choice<pc.atk_options.length ? atk_choice : pc.atk_options.length-1]
+                console.log(atk_choice, pc.atk_options.length, atk)
+                pc.attack.range = atk.range
+                pc.attack.power = atk.power
+                return atk
             },
             stats:{
                 temper:0,
