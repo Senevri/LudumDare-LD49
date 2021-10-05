@@ -22,11 +22,22 @@
         crosshairs.draw()
         ctx.fillStyle = "#FFFFFF"
         ctx.font = "8px Courier New"
-        ctx.fillText("Satiety:"+pc.stats.satiety, 4,8)
-        ctx.fillText("Mood:"+pc.getTemperString(pc) + " - " + pc.stats.temper, 4,gridsize.y*1)
+        ctx.fillText("Satiety:"+Math.floor(pc.stats.satiety), 4,8)
+        ctx.fillText("Mood:"+pc.getTemperString(pc) + " - " + Math.floor(pc.stats.temper), 4,gridsize.y*1)
         ctx.fillText("Enemies:" + enemies, 4, gridsize.y*9)
 
     }
+
+    function removeByName(entity, name) {
+        entity.behaviors = entity.behaviors.filter(b=>b.name != name)
+    }
+
+    function addOnlyOneByName(entity, name){
+        removeByName(entity, name)
+        entity.behaviors.push(new behaviors.Behavior(name))
+
+    }
+
 
     function director(){
         //check enemies in entities
@@ -54,9 +65,6 @@
                 hunt.target.stats.temper++
                 //console.log(hunt.target)
 
-                function removeByName(name) {
-                    enemy.behaviors = enemy.behaviors.filter(b=>b.name != name)
-                }
 
                 hunt.update = (enemy, behavior)=>{
 
@@ -65,11 +73,12 @@
                     let is_wandering = enemy.behaviors.filter(b=>b.name=="wander").length>0
                     let in_attack_distance = Math.floor(dist.distance/gridsize.x)<3
                     if (is_wandering && in_attack_distance) {
-                        removeByName("wander")
+                        removeByName(enemy, "wander")
 
                         //console.log("should stop moving")
                         movtoatk=new behaviors.Behavior("movetoatk")
                         movtoatk.update = (enemy, b)=>{
+                            enemy.speed=null
                             behaviors.func.moveToTarget(enemy, hunt.target.position)
                         }
                         enemy.speed=null
@@ -147,6 +156,7 @@
         let ents = getEntitiesInGrid(pos)
 
         //FIXME is buggy but is good enough.
+
         if (!onlyCreatureIsPlayer(ents)){
             let curpos = getGridPos(pc.position)
             let dx = gpos.x-curpos.x
@@ -171,32 +181,27 @@
         let pos = window.translateCursor(event)
 
         let gpos = mouseToGridPos(pc, pos)
-        console.log(pos, gpos)
-        entities.forEach((entity)=>{
-
-            pc.speed = null
-            pc.behaviors = pc.behaviors.filter((b)=>{
-                //console.log(b.name)
-                return (!["moveto"].includes(b.name) )
-            })
-            let moveto = new behaviors.Behavior("moveto")
+        //console.log(pos, gpos)
+        pc.behaviors = pc.behaviors.filter((b)=>{
+            //console.log(b.name)
+            return (!["moveto"].includes(b.name) )
+        })
+        pc.speed = null
+        let moveto = new behaviors.Behavior("moveto")
             moveto.gpos = gpos
             pc.behaviors.push(moveto)
-            // console.log(pc.behaviors)
 
+        entities.forEach((entity)=>{
             if (entity.checkCollision(pos.x,pos.y)) {
-                //console.log(entity.constructor.name, pos)
                 if (!["player", "food"].includes(entity.name)) {
                     let attack = new behaviors.Behavior("attack")
                     attack.target = entity
                     pc.behaviors.push(attack)
                 }
-                if ("food" == entity.name){
-                    pc.stats.satiety += entity.stats.nutrition
-                    entity.remove()
+                // NO eating with an attack ! Kinda like the idea of destroying it though
+                if ("food" != entity.name){ // shouldn't collide with food anyway though?
+                    collision = true
                 }
-                //console.log(pc.behaviors)
-                collision = true
             }
             if (entity.name=="selection") {
                 entity.isVisible(true)
@@ -214,9 +219,50 @@
         }
     }
 
+    let keycodes = {
+        SHIFT: 16,
+        CTRL: 17
+    }
+
+    function handleKeys(event, keyhandlers){
+        console.log(event.key, keyhandlers)
+        if (Object.keys(keyhandlers).includes(event.key)) {
+			//console.log(event, keyhandlers[event.key])
+			keyhandlers[event.key]()
+		}
+		else {
+
+			console.log("no handler for", event.keyCode, event.key);
+		}
+    }
+
+    function keyuplistener(event) {
+        let player = getEntity({name:"player"})
+
+		let keyhandlers = {
+            "Shift": ()=>{removeByName(player, "stop"); player.base_speed = player.old_speed},
+            "Control": ()=>{player.base_speed = 2}
+         }
+         handleKeys(event, keyhandlers)
+         console.log("speed", player.base_speed)
+    }
+
+    function keydownlistener(event) {
+        let player = getEntity({name:"player"})
+		let keyhandlers = {
+	        "Shift": ()=>{addOnlyOneByName(player, "stop")},
+            "Control": ()=>{player.base_speed = 4; player.stats.satiety -= 1}
+		}
+        handleKeys(event, keyhandlers)
+        console.log("speed", player.base_speed)
+
+    }
+
     crosshairs = new ImageEntity("crosshairs", {
         asset:resources["crosshairs.png"]})
+
     function mousemovehandler(event) {
+        ctx.clearRect(crosshairs.position.x, crosshairs.position.y, crosshairs.asset.width, crosshairs.asset.height)
         crosshairs.position = translateCursor(event,{x:-8, y:-8})
         crosshairs.draw()
     }
@@ -243,7 +289,6 @@
             update: ()=> {
                 let self = getEntity({name:"current_attack"})
                 let atk = pc.getAtkChoice(pc)
-                console.log(atk)
                 self.asset = atk.resource
             }
         }))
@@ -280,6 +325,9 @@
 
         canvas.addEventListener("mousedown", mousedownhandler)
         canvas.addEventListener("mousemove", mousemovehandler)
+        document.addEventListener("keydown", keydownlistener)
+        document.addEventListener("keyup", keyuplistener)
+
 
         document.getElementsByTagName("body")[0].appendChild(cibtauber.container)
         let heartbeat = window.setInterval(()=>{

@@ -166,9 +166,15 @@ let entities = (function(){
                         asset: resources["food.png"],
                         position:ent.position,
                         stats:{
+                            health: 0,
                             nutrition: ent.stats.nutrition + (ent.stats.health + attack.power)/6
                         }
                     })
+                    food.update = ()=>{ //close over food
+                        food.stats.nutrition += food.stats.health
+                        food.stats.health = 0 //Health is not meaningful for food
+                        if (food.stats.nutrition <= 0) food.remove();
+                    }
                     entities.push(food)
                     ent.remove()
                 }
@@ -193,7 +199,7 @@ let entities = (function(){
 
                 let atk_choice = pc.stats.temper > 0 ? Math.floor(pc.stats.temper/100*pc.atk_options.length) : 0
                 let atk = pc.atk_options[atk_choice<pc.atk_options.length ? atk_choice : pc.atk_options.length-1]
-                console.log(atk_choice, pc.atk_options.length, atk)
+                //console.log(atk_choice, pc.atk_options.length, atk)
                 pc.attack.range = atk.range
                 pc.attack.power = atk.power
                 return atk

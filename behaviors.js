@@ -58,12 +58,12 @@ behaviors = (function(){
             entity.speed = {x:0, y:0}
             p.x = target.x
             p.y = target.y
-            //entity.speed = null
+            entity.speed = null
             //entity.behaviors=[]
             done = true
         }
 
-        if (entity.speed) {
+        if (entity.speed && !entity.speed.stand_still) {
             p.x = p.x + entity.speed.x
             p.y = p.y + entity.speed.y
         }
@@ -78,12 +78,16 @@ behaviors = (function(){
                 ent.removeBehavior(behavior)
             }
         },
+        stop: (ent, behavior)=> {
+            ent.speed = null
+            ent.old_speed = ent.base_speed
+            ent.base_speed = 0
+        },
 
         eat: (ent, behavior) => {
             let foods = entities.filter(e=>e.name=="food")
             foods.forEach((food)=>{
                 if (getDistance(food.position, ent.position).distance < 16) {
-                    console.log(ent.stats, food.stats)
                     ent.stats.satiety += food.stats.nutrition
                     ent.stats.temper = Math.abs(ent.stats.temper - food.stats.nutrition/2.5)
                     food.remove()
@@ -140,7 +144,7 @@ behaviors = (function(){
                 entities = entities.filter(e=>!(e.name=="marker"&& e.forEntity == ent))
                 createMarker()
                 ent.target = t
-                console.log("new target",t, ent.position)
+                //console.log("new target",t, ent.position)
                 return t
             }
 
