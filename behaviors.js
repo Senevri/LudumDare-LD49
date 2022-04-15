@@ -116,7 +116,7 @@ behaviors = (function(){
                     ctx.moveTo(8+attacker.position.x, 8+attacker.position.y);
                     ctx.lineTo(8+target.position.x, 8+target.position.y);
                     ctx.stroke();
-                    attacker.satiety-=attacker.attack.power/10
+                    attacker.stats.satiety -= attacker.attack.power/10
                     attacker.attack.effect(target, attacker.attack)
                     attacker.removeBehavior(behavior)
                 }
